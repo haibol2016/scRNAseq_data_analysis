@@ -9,7 +9,7 @@
 #SBATCH --ntasks-per-node=1   # 36 processor core(s) per node 
 #SBATCH --mem=4G   # maximum memory per node
 #SBATCH --job-name="multiqc"
-#SBATCH --array=1-9
+#SBATCH --array=1
 #SBATCH --output="logs/out.addRG.%A_%a.txt" # job standard output file (%j replaced by job id)
 #SBATCH --error="logs/err.addRG.%A_%a.txt" # job standard error file (%j replaced by job id)
 
