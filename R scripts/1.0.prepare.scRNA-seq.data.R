@@ -13,9 +13,8 @@ packages2install <- c("dplyr", "cellrangerRkit", "cowplot", "knitr", "scran", "l
 uninstalled_packages <- packages2install[!packages2install %in% rownames(installed.packages())]
 lapply(uninstalled_packages, BiocManager::install)
 
-
 ## load packages
-packages2load <- c("cellrangerRkit", "dplyr")
+packages2load <- c("cellrangerRkit", "dplyr", "Seurat")
 lapply(packages2load, library, character.only = TRUE)
 
 # Script to prepare cellranger data for downstream analysis
@@ -24,32 +23,70 @@ lapply(packages2load, library, character.only = TRUE)
 # Read in output from cell ranger using cellrangerRkit
 samples <- c("./A", "./B", "./C", "./CT2-1NOV", "./CT2-30OCT")
 library_id <- gsub(".+\\/", "", samples, perl = TRUE)
-gene_bc_matrix <- lapply(samples, load_cellranger_matrix, genome="ssc3")
 
-## Cell Barcode
-pDat <- do.call(rbind, lapply( gene_bc_matrix, function(.x){
-    df <- data.frame(pData(.x))
-    print(dim(df))
-    df
-}))
 
-## number of detected cells
-numberOfCellperLib <- do.call(c, lapply(gene_bc_matrix, function(.x){
-    nrow(pData(.x))
-}))
+# for CellRanger 3.x
+data_dir <- c(PBMC1="C:\\Users\\Haibo\\Downloads\\PBMC1\\outs\\filtered_feature_bc_matrix",
+              PBMC2="C:\\Users\\Haibo\\Downloads\\PBMC2\\outs\\filtered_feature_bc_matrix")
 
-## count table
-cDat <- do.call(cbind, lapply(gene_bc_matrix, function(.x){
-    df <-as.matrix(exprs(.x))
-    df <- df[order(rownames(df)), ]
-    df}))
+numberOfCellperLib <- vector("numeric", length(samples))
 
-# reduce size of matrix
-keep <- rowSums(cDat) > 1
-cDat <- cDat[keep,]   ##  13064 genes,  8767 cells
+## Whether the output is from CellRanger v2.x or CellRanger v3.x
+pre_version3.0 <- TRUE  # CellRanger v2.x
 
-## gene symbol mapping
-fDat <- data.frame(fData(gene_bc_matrix[[1]]))[rownames(cDat),]
+
+##### For output from CellRanger v2.x
+if (pre_version3.0) 
+{
+    gene_bc_matrix <- lapply(samples, load_cellranger_matrix, genome="ssc3")
+
+    ## Cell Barcode
+    pDat <- do.call(rbind, lapply( gene_bc_matrix, function(.x){
+        df <- data.frame(pData(.x))
+        print(dim(df))
+        df
+    }))
+
+    ## number of detected cells
+    numberOfCellperLib <- do.call(c, lapply(gene_bc_matrix, function(.x){
+        nrow(pData(.x))
+    }))
+
+    ## count table
+    cDat <- do.call(cbind, lapply(gene_bc_matrix, function(.x){
+        df <-as.matrix(exprs(.x))
+        df <- df[order(rownames(df)), ]
+        df
+    }))
+
+    # reduce size of matrix
+    keep <- rowSums(cDat) > 1
+    cDat <- cDat[keep,]   ##  13064 genes,  8767 cells
+
+    ## gene symbol mapping
+    fDat <- data.frame(fData(gene_bc_matrix[[1]]))[rownames(cDat),]
+} else {
+    ## a named vector specifying the path to 10X output for further analysis
+    ## Within each folder, there are three .gz files for CellRanger V2.x, and four uncompressed files for CellRanger V3.x
+    lapply(data_dir, dir) ## Should show barcodes.tsv, genes.tsv, and matrix.mtx
+    scRNA_data <- Read10X(data.dir = data_dir)
+    seurat_object = CreateSeuratObject(counts = scRNA_data)
+    
+    ## Cell Barcode
+    pDat <-data.frame(barcode = colnames(seurat_object))
+    ## number of cells detected from each dataset
+    numberOfCellperLib <- do.call(c, lapply(names(data_dir), function(.x) {
+        sum(grepl(pattern = .x, colnames(seurat_object), fixed = TRUE))
+    }))
+    ## count table
+    cDat <-  as.matrix(GetAssayData(object = seurat_object, slot = 'counts'))
+    # reduce size of matrix
+    keep <- rowSums(cDat) > 1
+    cDat <- cDat[keep,]   ##  13064 genes,  8767 cells
+    ## gene symbol mapping
+    fDat <- data.frame(feature = rownames(cDat))
+}    
+
 
 # ---- Formatting ----
 
