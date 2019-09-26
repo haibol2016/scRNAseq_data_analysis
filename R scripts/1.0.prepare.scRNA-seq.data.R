@@ -25,7 +25,11 @@ samples <- c("./A", "./B", "./C", "./CT2-1NOV", "./CT2-30OCT")
 library_id <- gsub(".+\\/", "", samples, perl = TRUE)
 
 
-# for CellRanger 3.x
+## for CellRanger 3.x or 2.x
+## use a named vector specifying the path to 10X output for further analysis
+## Within each folder, there are three .gz files for CellRanger V2.x, 
+## and four uncompressed files for CellRanger V3.x
+
 data_dir <- c(PBMC1="C:\\Users\\Haibo\\Downloads\\PBMC1\\outs\\filtered_feature_bc_matrix",
               PBMC2="C:\\Users\\Haibo\\Downloads\\PBMC2\\outs\\filtered_feature_bc_matrix")
 
@@ -66,8 +70,6 @@ if (pre_version3.0)
     ## gene symbol mapping
     fDat <- data.frame(fData(gene_bc_matrix[[1]]))[rownames(cDat),]
 } else {
-    ## a named vector specifying the path to 10X output for further analysis
-    ## Within each folder, there are three .gz files for CellRanger V2.x, and four uncompressed files for CellRanger V3.x
     lapply(data_dir, dir) ## Should show barcodes.tsv, genes.tsv, and matrix.mtx
     scRNA_data <- Read10X(data.dir = data_dir)
     seurat_object = CreateSeuratObject(counts = scRNA_data)
