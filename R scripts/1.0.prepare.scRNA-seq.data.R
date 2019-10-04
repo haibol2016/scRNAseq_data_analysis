@@ -21,7 +21,7 @@ lapply(packages2load, library, character.only = TRUE)
 
 # ---- ReadData ----
 # Read in output from cell ranger using cellrangerRkit
-samples <- c("./A", "./B", "./C", "./CT2-1NOV", "./CT2-30OCT")
+samples <- c("./PBMC1", "./PBMC2")
 library_id <- gsub(".+\\/", "", samples, perl = TRUE)
 
 
@@ -86,7 +86,7 @@ if (pre_version3.0)
     keep <- rowSums(cDat) > 1
     cDat <- cDat[keep,]   ##  13064 genes,  8767 cells
     ## gene symbol mapping
-    fDat <- data.frame(feature = rownames(cDat))
+    fDat <- data.frame(id = rownames(cDat))
 }    
 
 
