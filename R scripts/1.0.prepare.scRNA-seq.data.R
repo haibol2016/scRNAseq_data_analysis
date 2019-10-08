@@ -87,6 +87,7 @@ if (pre_version3.0)
     cDat <- cDat[keep,]   ##  13064 genes,  8767 cells
     ## gene symbol mapping
     fDat <- data.frame(id = rownames(cDat))
+    rownames(fDat) <- fDat$id  
 }    
 
 
