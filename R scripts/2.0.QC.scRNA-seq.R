@@ -1,4 +1,4 @@
-# QC-Analysis
+# scRNA-seq QC-Analysis
 
 ## load packages
 packages2load <- c("scran", "dplyr", "knitr", "ggplot2", "Rtsne", "cowplot")
@@ -7,8 +7,12 @@ lapply(packages2load, library, character.only = TRUE)
 source("./functions.R")
 
 # Load Data
-out_objects_dir <- "./results/R.out/data/Robjects"
-out_plot_dir <- "./results/R.out"
+out_objects_dir <- "./results3.0/R.out/data/Robjects"
+out_plot_dir <- "./results3.0/R.out/plots"
+if(!exists(out_plot_dir))
+{
+    dir.create(out_plot_dir, recursive = TRUE)
+}
 
 dataList <- readRDS(file.path(out_objects_dir, "ExpressionList.rds"))
 m <- dataList[["counts"]]
@@ -21,7 +25,8 @@ rm(dataList)
 # Sequencing Depth and Genes detected
 pD$UmiSums<- colSums(m)
 pD$GenesDetected <- colSums(m!=0)
-pdf(file.path(out_plot_dir, "Sequence depth and number of gene detected real scale.pdf"), width = 7, height = 4)
+pdf(file.path(out_plot_dir, "1.0.Sequence depth and number of gene detected real scale.pdf"), 
+    width = 7, height = 4)
 genesDetected <- ggplot(pD, aes(x=SampleID, y=GenesDetected, fill= SampleID)) +
     geom_violin(draw_quantiles=0.5)+
     #scale_y_log10() +
@@ -35,13 +40,10 @@ print(LibrarySize)
 dev.off()
 
 
-
-
-
 ########################### Genewise QC ###################################
 ntop <- 50 
 mRel <- t(t(m)/colSums(m))
-rownames(mRel)  <- fD$symbol
+rownames(mRel)  <- fD$ID
 topExpressed <- rowMedians(mRel) ## library size normalized expression
 names(topExpressed) <- rownames(mRel)
 topExpressed <- topExpressed %>% sort(.,decreasing=TRUE) %>% names
@@ -51,25 +53,30 @@ plotData <- t(mRel)[,topExpressed[1:ntop]] %>%
                   Gene=Var2,
                   RelativeExpression=value)
 ## Add mitochondrial gene information
-plotData <- merge(plotData, fD, by.x = "Gene", by.y = "symbol", all.x = TRUE)
+plotData <- merge(plotData, fD, by.x = "Gene", by.y = "ID", all.x = TRUE)
 
-pdf(file.path(out_plot_dir,"Top 50 gene expression.pdf"), width = 7, height =7)
-topGenes <- ggplot(plotData, aes(x=Gene, y=RelativeExpression, color= Mitochondrial)) +
+pdf(file.path(out_plot_dir,"1.1.Top 50 gene expression.pdf"), 
+    width = 7, height =7)
+topGenes <- ggplot(plotData, aes(x=Gene, y=RelativeExpression,
+                                 color= Mitochondrial)) +
     geom_boxplot() +
     coord_flip() +
     theme_bw()
 print(topGenes)
 
 
-freqOfExp <- m!=0
-rownames(freqOfExp) <- fD$symbol
+freqOfExp <- m != 0
+rownames(freqOfExp) <- fD$ID
 freqOfExp <- sort(rowSums(freqOfExp)/ncol(freqOfExp),decreasing=TRUE)
 plotData <- data.frame("Gene"=names(freqOfExp),"Frequency"=freqOfExp)
-plotData <- merge(plotData, fD, by.x = "Gene", by.y = "symbol", all.x = TRUE, sorted =FALSE)
+plotData <- merge(plotData, fD, by.x = "Gene",
+                  by.y = "ID", all.x = TRUE, sorted =FALSE)
 plotData <- plotData[order(plotData$Frequency, decreasing= TRUE), ]
 
 ## most frequently detected genes across all cells
-topFreq <- ggplot(plotData[1:ntop,], aes(x=factor(Gene,levels=Gene), y=Frequency, color= Mitochondrial)) +
+topFreq <- ggplot(plotData[1:ntop,], 
+                  aes(x=factor(Gene,levels = Gene),
+                      y=Frequency, color= Mitochondrial)) +
     geom_bar(stat="identity", fill ="white") +
     coord_flip() +
     xlab("Gene") +
@@ -78,40 +85,37 @@ print(topFreq)
 dev.off()
 
 
-
-
 #########################  Cell Viability ##################################
 theme_set(theme_grey())
-pdf(file.path(out_plot_dir, "Cell viability plot.pdf"), width = 12, height = 4)
+pdf(file.path(out_plot_dir, "1.2.Cell viability plot.pdf"), width = 15, height = 3)
 mMito <- m[fD$Mitochondrial,]
 idtop <- fD[fD$symbol %in% names(freqOfExp)[1:ntop],"id"]
 mTop <- m[idtop,]!=0
 pD$prcntTop <- colSums(mTop)/ntop
 pD$prcntMito <- colSums(mMito)/colSums(m)
-cellViability <- ggplot(pD, aes(x=prcntMito, y=GenesDetected, color = SampleID))+
-    geom_point() + facet_wrap(~SampleID, nrow =1)+theme_get() + ylab("#Genes detected per cell")
+cellViability <- ggplot(pD, aes(x=prcntMito, y=GenesDetected, color = SampleID)) +
+    geom_point() + facet_wrap(~SampleID, nrow =1)+theme_get() +
+    ylab("#Genes detected per cell")
 cellViability
 prcntTop <- ggplot(pD, aes(x=prcntTop, y=GenesDetected, color = SampleID))+
     geom_point() + facet_wrap(~SampleID, nrow =1) +theme_get()
 prcntTop
 dev.off()
 
-rm(mMito)
-rm(mTop)
-
-
+rm(mMito, mTop)
 
 # ---- Index-Swapping ----
 library_id <- c("A", "B", "C", "CT2-1NOV", "CT2-30OCT")
+
+
 for (i in seq_along(library_id))
 {
-    pD$barcode <- ifelse(pD$SampleID== library_id[i], gsub("-\\d+", paste0("-",i), pD$barcode), pD$barcode)
+    pD$barcode <- ifelse(pD$SampleID == library_id[i], 
+                         paste0(pD$barcode, paste0(":",i)), pD$barcode)
 }
 
 colnames(m) <- pD$barcode
-
-barcodes <- as.character(pD$barcode)
-spt <- strsplit(barcodes, split = "-", fixed = T)
+spt <- strsplit(pD$barcode, split = ":", fixed = TRUE)
 pD$sample <- sapply(spt, function(x) x[2])
 pD$bcs <- sapply(spt, function(x) x[1])
 pD.add <- data.frame(bcs=names(table(pD$bcs)),
@@ -119,7 +123,7 @@ pD.add <- data.frame(bcs=names(table(pD$bcs)),
 pD.add <- pD.add[,-2]
 pD <- dplyr::left_join(pD,pD.add)
 
-pdf(file.path(out_plot_dir, "Index swapping.pdf"), width = 7, height =7)
+pdf(file.path(out_plot_dir, "1.3.Index swapping.pdf"), width = 7, height =7)
 # P1
 index.p1 <- ggplot(pD, aes(x=SampleID, fill=as.factor(bc.obs.Freq))) +
     geom_bar() +
@@ -169,11 +173,7 @@ index.p2 <- ggplot(compDf, aes(x=shared, y=-log10(p.val))) +
 index.p2
 dev.off()
 
-
-
-
 # ---- QCThresholding ----
-
 # Fixed threshold 0.05 seems too stringent
 MitoCutOff <- 0.1
 
@@ -207,7 +207,7 @@ kable(smryByGroup)
 #  |C         |           0.0752058|                 2.69897|                 3|
 #  |CT2-1NOV  |           0.0833021|                 2.69897|                 3|
 #  |CT2-30OCT |           0.0721746|                 2.69897|                 3|
-    
+
 
 pD <- mutate(pD,
              ThresholdViability = 0.1,  ## based on plotting, set to 0.1
@@ -233,14 +233,18 @@ pD <- mutate(pD,
 # Illustrate thresholds
 gdHist <- ggplot(pD, aes(x=GenesDetected,y=..density..)) +
     geom_histogram(fill="white",color="black",bins=100) +
-    geom_vline(data=smryByGroup,aes(xintercept=10^threshold_GenesDetected),color="red",lty="longdash") +
+    geom_vline(data=smryByGroup,
+               aes(xintercept=10^threshold_GenesDetected),
+               color="red",lty="longdash") +
     scale_x_log10() +
     xlab("Total number of genes detected") +
     facet_wrap(~ SampleID) 
 
 libSizeHist <- ggplot(pD, aes(x=UmiSums,y=..density..)) +
     geom_histogram(fill="white",color="black",bins=100) +
-    geom_vline(data=smryByGroup,aes(xintercept=10^threshold_UmiSums),color="red",lty="longdash") +
+    geom_vline(data=smryByGroup,
+               aes(xintercept=10^threshold_UmiSums),
+               color="red",lty="longdash") +
     scale_x_log10() +
     facet_wrap(~SampleID) +
     xlab("Total number of unique molecules") 
@@ -259,6 +263,13 @@ table(pD$SampleID,pD$PassGenesDet)
 # C           183 3291
 # CT2-1NOV      6 2946
 # CT2-30OCT    25 4052
+## CR 3.0
+#            FALSE TRUE
+# A          1261 3326
+# B          1047 3155
+# C          1380 3670
+# CT2-1NOV    545 3553
+# CT2-30OCT   432 4188
 
 
 table(pD$SampleID,pD$PassLibSize)
@@ -268,6 +279,13 @@ table(pD$SampleID,pD$PassLibSize)
 # C             0 3474
 # CT2-1NOV      0 2952
 # CT2-30OCT     0 4077
+##CR3.0
+#            FALSE TRUE
+# A           828 3759
+# B           976 3226
+# C          1447 3603
+# CT2-1NOV    620 3478
+# CT2-30OCT   483 4137
 
 
 table(pD$SampleID,pD$PassViability)
@@ -277,6 +295,14 @@ table(pD$SampleID,pD$PassViability)
 # C            15 3459
 # CT2-1NOV    189 2763
 # CT2-30OCT   100 3977
+## CR3.0
+#            FALSE TRUE
+# A            35 4552
+# B            47 4155
+# C            27 5023
+# CT2-1NOV    424 3674
+# CT2-30OCT   189 4431
+
 
 
 
@@ -287,14 +313,20 @@ table(pD$SampleID,pD$PassAll)
 # C           274 3200
 # CT2-1NOV    250 2702
 # CT2-30OCT   200 3877
+## CR3.0
+#            FALSE TRUE
+# A          1414 3173
+# B          1253 2949
+# C          1711 3339
+# CT2-1NOV    878 3220
+# CT2-30OCT   633 3987
 
 
-
-
-pdf(file.path(out_plot_dir, "Thresholding library size and cell viability.pdf"), height =7 ,width =7)
-  gdHist
-  libSizeHist
-  cellViability
+pdf(file.path(out_plot_dir, "1.4.Thresholding library size and cell viability.pdf"), 
+    height =7, width =15)
+gdHist
+libSizeHist
+cellViability
 dev.off()
 
 
@@ -310,7 +342,8 @@ for (i in seq_along(sample_id))
 names(ave.counts) <- sample_id
 
 
-pdf(file.path(out_plot_dir, "average counts in each library.pdf"), width =12, height =8)
+pdf(file.path(out_plot_dir, "1.5.Average counts in each library.pdf"), 
+    width =12, height =8)
 op <- par(mfrow = c(2,3))
 
 plot_ave <- function(x){hist(log10(x), breaks=100, main="", col="grey80",
@@ -326,14 +359,15 @@ par(op)
 ## based on number of cell (passed filtering), which express a gene, to determine
 ## filtering of genes (0.1%)
 m_filter <- m[, pD$PassAll]
-fD$keep <- rowSums(matrix(m_filter !=0, nrow = nrow(m_filter))) > ncol(m_filter)* 1/1000
+fD$keep <- rowSums(matrix(m_filter != 0, 
+                          nrow = nrow(m_filter))) > ncol(m_filter)* 1/1000
 
 
-sum(fD$keep)  ## 11707
+sum(fD$keep)  ## 11707 ## CR3.0  11442 genes
 
 # Save Data
 stopifnot(identical(as.character(pD$barcode),colnames(m)))
-stopifnot(identical(as.character(fD$id),rownames(m)))
+stopifnot(identical(as.character(fD$ID),rownames(m)))
 out <- list()
 out[["counts"]] <- m
 out[["phenoData"]] <- pD
