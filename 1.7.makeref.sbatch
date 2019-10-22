@@ -18,7 +18,12 @@
 
 i=$(($SLURM_ARRAY_TASK_ID - 1))
 
-gtf=Sus_scrofa.Sscrofa11.1.92.gtf
+perl -p -e 'if (/gene_name/) {s{(gene_id\s+"([^"]+).+?gene_name\s+")([^"]+)}{$1$2_$3}} \ 
+   elsif (!/^#/ && /gene_id/) {s/(gene_id\s+"([^"]+)";\s+)/$1gene_name "$2"; /}'  Sus_scrofa.Sscrofa11.1.97.gtf > \
+   Sus_scrofa.Sscrofa11.1.97.for.cellranger.gtf
+
+
+gtf=Sus_scrofa.Sscrofa11.1.97.for.cellranger.gtf
 out=Sus_scrofa.genome
 mkdir -p $out
 
